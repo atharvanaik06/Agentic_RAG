@@ -1,0 +1,21 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Generated indexes and user-provided documents
+data/raw/*
+!data/raw/.gitkeep
+data/indexes/*
+!data/indexes/.gitkeep
+data/models/
+reports/

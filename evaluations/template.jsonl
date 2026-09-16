@@ -1,0 +1,2 @@
+{"id":"example-001","question":"What does the corpus say about the example topic?","category":"single_document","answerable":true,"gold_targets":[{"filename":"example.pdf","pages":[1]}],"reference_answer":"A short human-written reference answer.","must_include":["important concept"],"notes":"Replace this record with cases for your own documents."}
+{"id":"example-002","question":"What fact is absent from the corpus?","category":"unanswerable","answerable":false,"gold_targets":[],"reference_answer":"The corpus does not contain this information.","must_include":[]}

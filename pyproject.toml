@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "advanced-agentic-rag"
+version = "0.1.0"
+description = "A controlled agentic RAG system built with LangGraph and hybrid retrieval."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Advanced Agentic RAG contributors" }]
+dependencies = [
+    "bm25s>=0.2,<1",
+    "chromadb>=1.0,<2",
+    "fonttools>=4,<5",
+    "flashrank>=0.2,<1",
+    "langchain-core>=1,<2",
+    "langgraph>=1,<2",
+    "openai>=2,<3",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.7,<3",
+    "pypdf>=6,<7",
+    "pystemmer>=2.2,<3",
+    "tiktoken>=0.12,<1",
+]
+
+[project.scripts]
+rag = "advanced_rag.interfaces.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.14,<2",
+    "pytest>=8.3,<10",
+    "pytest-cov>=6,<8",
+    "ruff>=0.9,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/advanced_rag"]
+
+[tool.uv]
+# Avoid macOS file flags from the cache making editable-install .pth files hidden.
+link-mode = "copy"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["advanced_rag"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 80
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["bm25s", "flashrank", "Stemmer"]
+ignore_missing_imports = true
