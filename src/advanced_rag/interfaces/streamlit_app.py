@@ -99,6 +99,7 @@ def _render_sidebar(settings: Settings) -> int:
         st.write(f"**Embedding:** `{settings.embedding_model}`")
         st.write(f"**Chat model:** `{settings.chat_model}`")
         st.write(f"**Reranker:** `{settings.reranker_model}`")
+        st.write(f"**Question scope:** {settings.agent_scope_description}")
         st.write(f"**Maximum attempts:** `{settings.agent_max_retrieval_attempts}`")
         top_k = st.slider(
             "Evidence chunks",
@@ -149,7 +150,7 @@ def _render_answer(result: AgentAnswer) -> None:
         st.markdown(result.answer)
 
     if result.sources:
-        with st.expander(f"Sources ({len(result.sources)})"):
+        with st.expander(f"Cited sources ({len(result.sources)})"):
             for source in result.sources:
                 page = f", page {source.page_number}" if source.page_number else ""
                 title = f" — {source.title}" if source.title else ""
@@ -158,7 +159,7 @@ def _render_answer(result: AgentAnswer) -> None:
     total_tokens = result.usage.input_tokens + result.usage.output_tokens
     st.caption(
         f"{result.retrieval_attempts} retrieval attempt(s) · "
-        f"{result.retrieval_diagnostics.distinct_sources} source(s) · "
+        f"{result.retrieval_diagnostics.distinct_sources} retrieved source(s) · "
         f"confidence: {result.retrieval_diagnostics.confidence} · "
         f"{result.usage.api_calls} API call(s) · {total_tokens:,} tokens"
     )

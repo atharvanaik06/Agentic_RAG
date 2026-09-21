@@ -64,4 +64,6 @@ def create_agent(
         chat_model=create_chat_model(settings),
         max_retrieval_attempts=settings.agent_max_retrieval_attempts,
         top_k=settings.agent_top_k,
+        scope_description=settings.agent_scope_description,
+        scope_terms=settings.agent_scope_term_list,
     )

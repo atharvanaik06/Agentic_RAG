@@ -239,8 +239,9 @@ citations are removed before the answer is returned.
 
 ## Evaluation and regression testing
 
-The included monetary-policy benchmark contains 30 questions: 27 answerable
-questions with source/page targets and 3 deliberately unanswerable questions.
+The included monetary-policy benchmark contains 31 questions: 27 answerable
+questions with source/page targets and 4 deliberately unanswerable or
+out-of-domain questions.
 Run the retrieval evaluation after building both indexes:
 
 ```bash
@@ -367,8 +368,11 @@ plumbing tests or to disable reranking explicitly.
 
 Agent configuration uses `RAG_CHAT_PROVIDER`, `RAG_CHAT_MODEL`,
 `RAG_CHAT_MAX_OUTPUT_TOKENS`, `RAG_AGENT_MAX_RETRIEVAL_ATTEMPTS`, and
-`RAG_AGENT_TOP_K`. The current supported chat provider is OpenAI; the graph
-depends on a small provider protocol so additional providers can be added later.
+`RAG_AGENT_TOP_K`. `RAG_AGENT_SCOPE_DESCRIPTION` and
+`RAG_AGENT_SCOPE_TERMS` configure the inexpensive local domain gate; customize
+them when using a different corpus. The current supported chat provider is
+OpenAI; the graph depends on a small provider protocol so additional providers
+can be added later.
 
 Evaluation configuration uses `RAG_EVALUATION_DIR`,
 `RAG_EVALUATION_ENTAILMENT_MODEL`,
