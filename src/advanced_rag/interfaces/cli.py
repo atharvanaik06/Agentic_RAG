@@ -17,35 +17,28 @@ from advanced_rag.evaluation.reporting import (
     save_report,
 )
 from advanced_rag.evaluation.retrieval import benchmark_name
-from advanced_rag.generation.chat import create_chat_model
 from advanced_rag.generation.models import AgentAnswer
 from advanced_rag.graph import AgenticRAG
 from advanced_rag.ingestion import IngestionPipeline
+from advanced_rag.interfaces.ui import launch_streamlit
 from advanced_rag.retrieval.dense import ChromaDenseIndex
-from advanced_rag.retrieval.embeddings import create_embedding_provider
 from advanced_rag.retrieval.hybrid import HybridRetriever, reciprocal_rank_fusion
 from advanced_rag.retrieval.models import DenseSearchFilters, RetrievalFilters
-from advanced_rag.retrieval.rerankers import create_reranker
 from advanced_rag.retrieval.sparse import BM25SparseIndex
-from advanced_rag.tools import create_search_knowledge_base_tool
+from advanced_rag.runtime import (
+    create_agent,
+    create_dense_index,
+    create_hybrid_retriever,
+    create_sparse_index,
+)
 
 
 def _dense_index(settings: Settings) -> ChromaDenseIndex:
-    return ChromaDenseIndex(
-        path=settings.chroma_dir,
-        collection_name=settings.chroma_collection,
-        embedder=create_embedding_provider(settings),
-        write_batch_size=settings.embedding_batch_size,
-    )
+    return create_dense_index(settings)
 
 
 def _sparse_index(settings: Settings) -> BM25SparseIndex:
-    return BM25SparseIndex(
-        path=settings.bm25_dir,
-        method=settings.bm25_method,
-        k1=settings.bm25_k1,
-        b=settings.bm25_b,
-    )
+    return create_sparse_index(settings)
 
 
 def _hybrid_retriever(settings: Settings) -> HybridRetriever:
@@ -57,27 +50,11 @@ def _configured_hybrid(
     dense: ChromaDenseIndex,
     sparse: BM25SparseIndex,
 ) -> HybridRetriever:
-    return HybridRetriever(
-        dense=dense,
-        sparse=sparse,
-        reranker=create_reranker(settings),
-        candidate_k=settings.hybrid_candidate_k,
-        rerank_k=settings.hybrid_rerank_k,
-        rrf_k=settings.hybrid_rrf_k,
-        context_token_budget=settings.hybrid_context_token_budget,
-        max_chunks_per_source=settings.hybrid_max_chunks_per_source,
-        max_chunks_per_page=settings.hybrid_max_chunks_per_page,
-    )
+    return create_hybrid_retriever(settings, dense=dense, sparse=sparse)
 
 
 def _agent(settings: Settings) -> AgenticRAG:
-    retriever = _hybrid_retriever(settings)
-    return AgenticRAG(
-        search_tool=create_search_knowledge_base_tool(retriever),
-        chat_model=create_chat_model(settings),
-        max_retrieval_attempts=settings.agent_max_retrieval_attempts,
-        top_k=settings.agent_top_k,
-    )
+    return create_agent(settings)
 
 
 def _thresholds(settings: Settings) -> RegressionThresholds:
@@ -207,6 +184,11 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--agent", type=Path)
     report.add_argument("--output", type=Path)
     report.add_argument("--enforce", action="store_true")
+
+    ui = subparsers.add_parser("ui", help="Launch the local Streamlit interface")
+    ui.add_argument("--address", default="127.0.0.1")
+    ui.add_argument("--port", type=int, default=8501)
+    ui.add_argument("--headless", action="store_true", help="Do not open a browser window")
     return parser
 
 
@@ -214,6 +196,9 @@ def main() -> int:
     """Execute one CLI operation and return a process exit code."""
     args = build_parser().parse_args()
     settings = get_settings()
+
+    if args.command == "ui":
+        return launch_streamlit(address=args.address, port=args.port, headless=args.headless)
 
     if args.command == "ingest":
         ingestion_result = IngestionPipeline(settings).ingest(args.source or settings.data_dir)

@@ -3,12 +3,33 @@
 A controlled agentic retrieval-augmented generation project using LangGraph,
 ChromaDB, hybrid dense/BM25 retrieval, and reranking.
 
-The repository has completed **Phase 7: evaluation and regression testing**. It can
+The repository has completed **Phase 7: evaluation and regression testing**, and
+the Phase 8 Streamlit interface is in progress. It can
 discover, load, normalize, and chunk PDF, Markdown, and TXT sources; retrieve
 from persistent ChromaDB and BM25 indexes in parallel; fuse rankings; rerank
 locally; conditionally rewrite weak searches; generate grounded answers; and
 validate every emitted citation. It also includes retrieval, reranker, and
 end-to-end agent benchmarks with machine-readable results and quality gates.
+
+## Local web interface
+
+Launch the Phase 8 Streamlit application shell with:
+
+```bash
+uv run rag ui
+```
+
+The initial screen verifies that the API key is configured, opens the local
+Chroma and BM25 indexes, compares their chunk counts, and displays the active
+models without exposing secrets. Use a different port or suppress automatic
+browser opening when needed:
+
+```bash
+uv run rag ui --port 8502 --headless
+```
+
+Interactive chat, source inspection, graph traces, document management, and the
+evaluation dashboard are added in the remaining Phase 8 milestones.
 
 ## Requirements
 
