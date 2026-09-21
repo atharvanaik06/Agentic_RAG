@@ -16,20 +16,24 @@ end-to-end agent benchmarks with machine-readable results and quality gates.
 Launch the Phase 8 Streamlit application shell with:
 
 ```bash
-uv run rag ui
+uv run --no-editable rag ui
 ```
 
-The initial screen verifies that the API key is configured, opens the local
-Chroma and BM25 indexes, compares their chunk counts, and displays the active
-models without exposing secrets. Use a different port or suppress automatic
-browser opening when needed:
+The interface verifies that the API key is configured, opens the local Chroma
+and BM25 indexes, compares their chunk counts, and displays the active models
+without exposing secrets. When the system is ready, the chat view runs the
+existing six-node LangGraph workflow, preserves conversation results for the
+current browser session, and displays validated answers with compact source and
+usage summaries.
+
+Use a different port or suppress automatic browser opening when needed:
 
 ```bash
-uv run rag ui --port 8502 --headless
+uv run --no-editable rag ui --port 8502 --headless
 ```
 
-Interactive chat, source inspection, graph traces, document management, and the
-evaluation dashboard are added in the remaining Phase 8 milestones.
+Detailed source inspection, graph traces, document management, and the evaluation
+dashboard are added in the remaining Phase 8 milestones.
 
 ## Requirements
 
