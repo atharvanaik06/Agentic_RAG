@@ -6,7 +6,8 @@ from pydantic import SecretStr
 from streamlit.testing.v1 import AppTest
 
 from advanced_rag.config import Settings, get_settings
-from advanced_rag.interfaces.streamlit_app import _readiness, _request_token_reserve
+from advanced_rag.interfaces.spending import conservative_request_token_reserve
+from advanced_rag.interfaces.streamlit_app import _readiness
 from advanced_rag.interfaces.ui import launch_streamlit, streamlit_script_path
 from advanced_rag.retrieval.models import CollectionInfo, SparseIndexInfo
 
@@ -67,6 +68,7 @@ def test_streamlit_shell_reports_empty_indexes(
         "Maximum agent steps",
     }
     assert "Require semantic evidence grading" in {checkbox.label for checkbox in app.checkbox}
+    assert "Evaluation dashboard" in {expander.label for expander in app.expander}
     get_settings.cache_clear()
 
 
@@ -109,12 +111,12 @@ def test_chat_readiness_requires_key_nonempty_matching_indexes() -> None:
 def test_semantic_grading_increases_conservative_token_reserve() -> None:
     settings = Settings(_env_file=None)
 
-    local_only = _request_token_reserve(
+    local_only = conservative_request_token_reserve(
         settings,
         2,
         semantic_evidence_grading=False,
     )
-    semantic = _request_token_reserve(
+    semantic = conservative_request_token_reserve(
         settings,
         2,
         semantic_evidence_grading=True,

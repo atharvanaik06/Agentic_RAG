@@ -51,3 +51,18 @@ def test_zero_limits_are_unlimited_and_usage_accumulates() -> None:
     assert decision.remaining_questions is None
     assert decision.remaining_api_calls is None
     assert decision.remaining_tokens is None
+
+
+def test_multi_question_run_reserves_and_records_every_case() -> None:
+    decision = spending_decision(
+        SpendingLimits(questions=5, api_calls=20, tokens=50000),
+        SessionUsage(questions=3, api_calls=1, tokens=100),
+        question_reserve=3,
+        api_call_reserve=6,
+        token_reserve=10000,
+    )
+    usage = SessionUsage().add(questions=3, api_calls=5, tokens=9000)
+
+    assert decision.allowed is False
+    assert "3 questions" in decision.reasons[0]
+    assert usage == SessionUsage(questions=3, api_calls=5, tokens=9000)
