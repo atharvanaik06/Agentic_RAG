@@ -121,6 +121,11 @@ def test_graph_answers_with_validated_citations_in_one_attempt() -> None:
     assert answer.answer == "- Demand and supply both contributed. [S1]"
     assert answer.sources[0].filename == "paper.pdf"
     assert answer.sources[0].page_number == 12
+    assert answer.sources[0].text.startswith("Expansionary demand")
+    assert answer.sources[0].dense_rank == 1
+    assert answer.sources[0].sparse_rank == 1
+    assert answer.sources[0].reranker_score == 0.95
+    assert answer.sources[0].retrieval_sources == ("dense", "sparse")
     assert answer.citation_validation.valid is True
     assert answer.retrieval_attempts == 1
     assert answer.usage == ModelUsage(api_calls=1, input_tokens=100, output_tokens=20)

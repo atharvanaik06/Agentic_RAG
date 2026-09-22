@@ -1,5 +1,7 @@
 """Typed inputs and outputs for grounded answer generation."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from advanced_rag.retrieval.hybrid_models import RetrievalDiagnostics
@@ -46,6 +48,16 @@ class CitationSource(BaseModel):
     filename: str
     title: str | None
     page_number: int | None
+    text: str = ""
+    token_count: int = Field(default=0, ge=0)
+    final_rank: int | None = Field(default=None, ge=1)
+    dense_rank: int | None = Field(default=None, ge=1)
+    dense_score: float | None = None
+    sparse_rank: int | None = Field(default=None, ge=1)
+    sparse_score: float | None = Field(default=None, ge=0)
+    rrf_score: float | None = Field(default=None, ge=0)
+    reranker_score: float | None = None
+    retrieval_sources: tuple[Literal["dense", "sparse"], ...] = ()
 
 
 class CitationValidation(BaseModel):

@@ -312,6 +312,16 @@ def _render_answer(
             filename=label_map[label].chunk.metadata.filename,
             title=label_map[label].chunk.metadata.title,
             page_number=label_map[label].chunk.metadata.page_number,
+            text=label_map[label].chunk.text,
+            token_count=label_map[label].chunk.token_count,
+            final_rank=label_map[label].final_rank,
+            dense_rank=label_map[label].dense_rank,
+            dense_score=label_map[label].dense_score,
+            sparse_rank=label_map[label].sparse_rank,
+            sparse_score=label_map[label].sparse_score,
+            rrf_score=label_map[label].rrf_score,
+            reranker_score=label_map[label].reranker_score,
+            retrieval_sources=label_map[label].retrieval_sources,
         )
         for label in sorted(cited_labels, key=lambda value: int(value[1:]))
     )

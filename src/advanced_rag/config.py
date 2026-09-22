@@ -68,6 +68,10 @@ class Settings(BaseSettings):
         "profits,employment,labor market,economic growth,macroeconomic,term premium,yield"
     )
 
+    ui_session_question_limit: int = Field(default=10, ge=0, le=1000)
+    ui_session_api_call_limit: int = Field(default=20, ge=0, le=10000)
+    ui_session_token_budget: int = Field(default=50000, ge=0, le=10000000)
+
     evaluation_dir: Path = Path("reports")
     evaluation_entailment_model: str = "gpt-4o-mini"
     evaluation_hybrid_recall_threshold: float = Field(default=0.75, ge=0, le=1)
