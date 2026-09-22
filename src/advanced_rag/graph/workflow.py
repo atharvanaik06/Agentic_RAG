@@ -7,7 +7,7 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from advanced_rag.generation.chat import ChatModel
+from advanced_rag.generation.chat import ChatModel, EvidenceGrader
 from advanced_rag.generation.models import (
     AgentAnswer,
     AnswerClaim,
@@ -33,6 +33,8 @@ class AgenticRAG:
         *,
         search_tool: BaseTool,
         chat_model: ChatModel,
+        evidence_grader: EvidenceGrader | None = None,
+        semantic_evidence_grading: bool = False,
         max_retrieval_attempts: int = 2,
         max_agent_steps: int = 8,
         top_k: int = 6,
@@ -47,6 +49,8 @@ class AgenticRAG:
             raise ValueError("top_k must be between 1 and 20")
         self.search_tool = search_tool
         self.chat_model = chat_model
+        self.evidence_grader = evidence_grader
+        self.semantic_evidence_grading = semantic_evidence_grading
         self.max_retrieval_attempts = max_retrieval_attempts
         self.max_agent_steps = max_agent_steps
         self.top_k = top_k
@@ -62,6 +66,7 @@ class AgenticRAG:
         top_k: int | None = None,
         max_retrieval_attempts: int | None = None,
         max_agent_steps: int | None = None,
+        semantic_evidence_grading: bool | None = None,
     ) -> AgentAnswer:
         """Run one bounded graph invocation and return its validated answer."""
         if not question.strip():
@@ -80,11 +85,19 @@ class AgenticRAG:
         if not 5 <= step_limit <= 100:
             raise ValueError("max_agent_steps must be between 5 and 100")
         attempt_limit = bounded_retrieval_attempts(requested_attempts, step_limit)
+        use_semantic_grader = (
+            self.semantic_evidence_grading
+            if semantic_evidence_grading is None
+            else semantic_evidence_grading
+        )
+        if use_semantic_grader and self.evidence_grader is None:
+            raise ValueError("semantic evidence grading requires an evidence grader")
         initial: AgentState = {
             "question": question.strip(),
             "filters": filters or RetrievalFilters(),
             "top_k": result_limit,
             "max_retrieval_attempts": attempt_limit,
+            "semantic_evidence_grading": use_semantic_grader,
             "retrieval_attempts": 0,
             "trace": [],
             "errors": [],
@@ -186,22 +199,57 @@ class AgenticRAG:
 
     def _grade_evidence(self, state: AgentState) -> AgentState:
         evidence = state["evidence"]
+        usage = ModelUsage()
+        errors: list[str] = []
         if not evidence.results:
             sufficient = False
             reason = "No relevant local evidence was retrieved"
+            action = "graded_locally"
+        elif state.get("semantic_evidence_grading", False):
+            assert self.evidence_grader is not None
+            try:
+                grade, usage = self.evidence_grader.grade_evidence(
+                    question=state["question"],
+                    evidence=evidence.results,
+                )
+                available_labels = {
+                    f"S{position}" for position in range(1, len(evidence.results) + 1)
+                }
+                supporting_labels = {_normalize_label(label) for label in grade.supporting_labels}
+                invalid_labels = supporting_labels - available_labels
+                sufficient = grade.sufficient and bool(supporting_labels) and not invalid_labels
+                reason = grade.reason.strip()
+                if grade.sufficient and not supporting_labels:
+                    reason = "Semantic grader claimed sufficiency without supporting labels"
+                elif invalid_labels:
+                    reason = "Semantic grader returned unknown supporting labels: " + ", ".join(
+                        sorted(invalid_labels)
+                    )
+                elif not grade.sufficient and grade.missing_information:
+                    reason = f"{reason} Missing: {grade.missing_information.strip()}"
+                action = "graded_semantically"
+            except Exception as exc:
+                sufficient = False
+                reason = "Semantic evidence grading failed closed"
+                errors = [f"Semantic evidence grading failed: {exc}"]
+                action = "semantic_grading_failed"
         elif evidence.diagnostics.confidence == "low":
             sufficient = False
             reason = "Retrieval confidence was low"
+            action = "graded_locally"
         else:
             sufficient = True
             reason = (
                 f"Evidence passed with {evidence.diagnostics.agreement_count} "
                 "dense/sparse agreements"
             )
+            action = "graded_locally"
         return {
             "evidence_sufficient": sufficient,
             "grade_reason": reason,
-            "trace": [self._event("grade_evidence", "graded", reason, state)],
+            "errors": errors,
+            **_usage_update(usage),
+            "trace": [self._event("grade_evidence", action, reason, state)],
         }
 
     def _route_after_grading(
@@ -242,6 +290,17 @@ class AgenticRAG:
             usage = ModelUsage()
             errors: list[str] = []
             detail = "Skipped model generation because no evidence was available"
+        elif not state.get("evidence_sufficient", False):
+            draft = GroundedDraft(
+                insufficient_evidence=True,
+                limitation=state.get(
+                    "grade_reason",
+                    "Retrieved passages did not directly answer the question.",
+                ),
+            )
+            usage = ModelUsage()
+            errors = []
+            detail = "Skipped model generation because evidence was insufficient"
         else:
             try:
                 draft, usage = self.chat_model.generate_answer(

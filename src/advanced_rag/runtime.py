@@ -59,9 +59,12 @@ def create_agent(
 ) -> AgenticRAG:
     """Create the complete bounded LangGraph agent, optionally reusing indexes."""
     retriever = create_hybrid_retriever(settings, dense=dense, sparse=sparse)
+    chat_model = create_chat_model(settings)
     return AgenticRAG(
         search_tool=create_search_knowledge_base_tool(retriever),
-        chat_model=create_chat_model(settings),
+        chat_model=chat_model,
+        evidence_grader=chat_model,
+        semantic_evidence_grading=settings.agent_semantic_evidence_grading,
         max_retrieval_attempts=settings.agent_max_retrieval_attempts,
         max_agent_steps=settings.agent_max_steps,
         top_k=settings.agent_top_k,

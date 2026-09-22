@@ -69,6 +69,7 @@ class SidebarOptions:
     top_k: int
     max_retrieval_attempts: int
     max_agent_steps: int
+    semantic_evidence_grading: bool
     limits: SpendingLimits
 
 
@@ -177,6 +178,14 @@ def _render_sidebar(settings: Settings, usage: SessionUsage) -> SidebarOptions:
             )
             if effective_attempts < requested_attempts:
                 st.warning("The agent-step budget is too small to permit every selected retry.")
+            semantic_evidence_grading = st.checkbox(
+                "Require semantic evidence grading",
+                value=settings.agent_semantic_evidence_grading,
+                help=(
+                    "Uses one additional chat-model call after each successful retrieval to "
+                    "verify that the passages directly answer the question."
+                ),
+            )
 
         with st.expander("Spending controls", expanded=True):
             st.caption(
@@ -225,6 +234,7 @@ def _render_sidebar(settings: Settings, usage: SessionUsage) -> SidebarOptions:
             top_k=top_k,
             max_retrieval_attempts=effective_attempts,
             max_agent_steps=max_agent_steps,
+            semantic_evidence_grading=semantic_evidence_grading,
             limits=SpendingLimits(
                 questions=question_limit,
                 api_calls=api_call_limit,
@@ -563,13 +573,21 @@ def _format_score(value: float | None) -> str:
     return "—" if value is None else f"{value:.4f}"
 
 
-def _request_token_reserve(settings: Settings, max_retrieval_attempts: int) -> int:
+def _request_token_reserve(
+    settings: Settings,
+    max_retrieval_attempts: int,
+    *,
+    semantic_evidence_grading: bool,
+) -> int:
     """Return a conservative preflight estimate, not a provider billing guarantee."""
-    return (
+    reserve = (
         settings.hybrid_context_token_budget
         + settings.chat_max_output_tokens
         + 1000 * max_retrieval_attempts
     )
+    if semantic_evidence_grading:
+        reserve += max_retrieval_attempts * (settings.hybrid_context_token_budget + 500)
+    return reserve
 
 
 def _render_spending_status(
@@ -635,10 +653,12 @@ def main() -> None:
     budget = spending_decision(
         options.limits,
         usage,
-        api_call_reserve=options.max_retrieval_attempts,
+        api_call_reserve=options.max_retrieval_attempts
+        * (2 if options.semantic_evidence_grading else 1),
         token_reserve=_request_token_reserve(
             runtime.settings,
             options.max_retrieval_attempts,
+            semantic_evidence_grading=options.semantic_evidence_grading,
         ),
     )
 
@@ -670,6 +690,7 @@ def main() -> None:
                     top_k=options.top_k,
                     max_retrieval_attempts=options.max_retrieval_attempts,
                     max_agent_steps=options.max_agent_steps,
+                    semantic_evidence_grading=options.semantic_evidence_grading,
                 )
         except Exception as exc:
             st.error("The agent could not complete this question.")

@@ -253,9 +253,13 @@ and token usage as JSON:
 uv run rag ask "What drove inflation?" --json
 ```
 
-Question analysis, retrieval grading, routing, citation validation, and final
-rendering run locally. The graph makes one chat-model call for answer generation.
-It makes one additional call only when weak evidence triggers query rewriting.
+Question analysis, routing, citation validation, and final rendering run locally.
+By default, the graph makes one chat-model call after retrieval to judge whether
+the passages directly answer the question, then one generation call only when
+that judgment passes. Weak evidence can trigger one rewrite call and another
+retrieval-grade cycle. Semantic grading can be disabled in Streamlit or with
+`RAG_AGENT_SEMANTIC_EVIDENCE_GRADING=false`, which restores the less-expensive
+retrieval-confidence heuristic.
 `RAG_AGENT_MAX_RETRIEVAL_ATTEMPTS` is bounded from 1 to 5 and defaults to 2.
 `RAG_AGENT_MAX_STEPS` defaults to 8. In Streamlit, users can select zero to
 four retrieval retries and a five-to-seventeen-step graph budget per question.
@@ -263,6 +267,12 @@ The base answer path uses five nodes, and each permitted rewrite-and-retrieval
 cycle requires three more nodes. If the step budget cannot accommodate all
 selected retries, the smaller safe limit is used.
 Web search is not part of this graph and remains disabled by default.
+
+Semantic grading fails closed: unknown evidence labels, provider errors, or a
+judgment that a requested fact is absent cannot proceed to answer generation.
+After the configured retry limit, the graph returns an insufficient-evidence
+response. Grader calls and tokens are included in the same session spending
+ledger as query rewriting and answer generation.
 
 Answers are generated as structured claims whose `S1`, `S2`, etc. references
 are validated against the retrieved chunk set. Claims with missing or unknown
@@ -399,10 +409,11 @@ plumbing tests or to disable reranking explicitly.
 
 Agent configuration uses `RAG_CHAT_PROVIDER`, `RAG_CHAT_MODEL`,
 `RAG_CHAT_MAX_OUTPUT_TOKENS`, `RAG_AGENT_MAX_RETRIEVAL_ATTEMPTS`, and
-`RAG_AGENT_MAX_STEPS`, and `RAG_AGENT_TOP_K`. `RAG_AGENT_SCOPE_DESCRIPTION` and
+`RAG_AGENT_MAX_STEPS`, `RAG_AGENT_TOP_K`, and
+`RAG_AGENT_SEMANTIC_EVIDENCE_GRADING`. `RAG_AGENT_SCOPE_DESCRIPTION` and
 `RAG_AGENT_SCOPE_TERMS` configure the inexpensive local domain gate; customize
 them when using a different corpus. The current supported chat provider is
-OpenAI; the graph depends on a small provider protocol so additional providers
+OpenAI; the graph depends on small provider protocols so additional providers
 can be added later.
 
 Streamlit spending defaults use `RAG_UI_SESSION_QUESTION_LIMIT`,

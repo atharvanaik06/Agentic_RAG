@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     agent_max_retrieval_attempts: int = Field(default=2, ge=1, le=5)
     agent_max_steps: int = Field(default=8, ge=5, le=100)
     agent_top_k: int = Field(default=6, ge=1, le=20)
+    agent_semantic_evidence_grading: bool = True
     agent_scope_description: str = "monetary policy, central banking, and macro-financial research"
     agent_scope_terms: str = (
         "monetary,inflation,disinflation,central bank,central banking,federal reserve,fed,fomc,"

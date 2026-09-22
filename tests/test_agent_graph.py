@@ -3,7 +3,12 @@ from collections.abc import Sequence
 import pytest
 from langchain_core.tools import StructuredTool
 
-from advanced_rag.generation.models import AnswerClaim, GroundedDraft, ModelUsage
+from advanced_rag.generation.models import (
+    AnswerClaim,
+    EvidenceGrade,
+    GroundedDraft,
+    ModelUsage,
+)
 from advanced_rag.graph import AgenticRAG
 from advanced_rag.graph.workflow import bounded_retrieval_attempts, question_matches_scope
 from advanced_rag.ingestion.models import ChunkMetadata, DocumentChunk, FileType
@@ -108,6 +113,26 @@ class FakeChatModel:
         return self.draft, ModelUsage(api_calls=1, input_tokens=100, output_tokens=20)
 
 
+class FakeEvidenceGrader:
+    def __init__(self, grades: list[EvidenceGrade]) -> None:
+        self.grades = grades
+        self.calls = 0
+
+    def grade_evidence(
+        self,
+        *,
+        question: str,
+        evidence: Sequence[HybridSearchResult],
+    ) -> tuple[EvidenceGrade, ModelUsage]:
+        del question, evidence
+        self.calls += 1
+        return self.grades.pop(0), ModelUsage(
+            api_calls=1,
+            input_tokens=30,
+            output_tokens=5,
+        )
+
+
 def test_graph_answers_with_validated_citations_in_one_attempt() -> None:
     chat = FakeChatModel(
         GroundedDraft(
@@ -163,6 +188,104 @@ def test_graph_rewrites_once_when_first_evidence_is_weak() -> None:
     assert answer.usage.input_tokens == 120
     assert chat.rewrite_calls == 1
     assert [event.node for event in answer.graph_trace].count("retrieve_evidence") == 2
+
+
+def test_semantic_grader_rewrites_related_evidence_then_allows_direct_evidence() -> None:
+    chat = FakeChatModel(
+        GroundedDraft(claims=[AnswerClaim(text="Supported finding.", citations=["S1"])])
+    )
+    grader = FakeEvidenceGrader(
+        [
+            EvidenceGrade(
+                sufficient=False,
+                reason="The passage is only topically related.",
+                missing_information="The requested policy decision.",
+            ),
+            EvidenceGrade(
+                sufficient=True,
+                supporting_labels=["S1"],
+                reason="S1 directly states the requested decision.",
+            ),
+        ]
+    )
+    agent = AgenticRAG(
+        search_tool=_search_tool([_response("first"), _response("second")]),
+        chat_model=chat,
+        evidence_grader=grader,
+        semantic_evidence_grading=True,
+        max_retrieval_attempts=2,
+    )
+
+    answer = agent.ask("What policy decision was made?")
+
+    assert answer.insufficient_evidence is False
+    assert answer.retrieval_attempts == 2
+    assert grader.calls == 2
+    assert chat.rewrite_calls == 1
+    assert chat.generate_calls == 1
+    assert answer.usage == ModelUsage(api_calls=4, input_tokens=180, output_tokens=35)
+    assert [event.action for event in answer.graph_trace].count("graded_semantically") == 2
+
+
+def test_semantic_grader_refuses_after_retry_without_generating() -> None:
+    chat = FakeChatModel(GroundedDraft())
+    grader = FakeEvidenceGrader(
+        [
+            EvidenceGrade(
+                sufficient=False,
+                reason="The value is absent.",
+                missing_information="The requested interest rate.",
+            ),
+            EvidenceGrade(
+                sufficient=False,
+                reason="The rewritten search is still indirect.",
+                missing_information="The requested interest rate.",
+            ),
+        ]
+    )
+    agent = AgenticRAG(
+        search_tool=_search_tool([_response("first"), _response("second")]),
+        chat_model=chat,
+        evidence_grader=grader,
+        semantic_evidence_grading=True,
+        max_retrieval_attempts=2,
+    )
+
+    answer = agent.ask("What was the exact interest rate?")
+
+    assert answer.insufficient_evidence is True
+    assert "still indirect" in answer.answer
+    assert answer.sources == ()
+    assert answer.usage.api_calls == 3
+    assert chat.generate_calls == 0
+
+
+def test_semantic_grader_fails_closed_on_unknown_supporting_label() -> None:
+    chat = FakeChatModel(
+        GroundedDraft(claims=[AnswerClaim(text="Must not run.", citations=["S1"])])
+    )
+    grader = FakeEvidenceGrader(
+        [
+            EvidenceGrade(
+                sufficient=True,
+                supporting_labels=["S99"],
+                reason="Incorrect label.",
+            )
+        ]
+    )
+    agent = AgenticRAG(
+        search_tool=_search_tool([_response("query")]),
+        chat_model=chat,
+        evidence_grader=grader,
+        semantic_evidence_grading=True,
+        max_retrieval_attempts=1,
+    )
+
+    answer = agent.ask("What policy decision was made?")
+
+    assert answer.insufficient_evidence is True
+    assert "unknown supporting labels" in answer.answer
+    assert chat.generate_calls == 0
 
 
 def test_graph_rejects_hallucinated_citations() -> None:
@@ -293,3 +416,5 @@ def test_graph_validates_public_inputs() -> None:
         )
     with pytest.raises(ValueError, match="max_agent_steps"):
         agent.ask("question", max_agent_steps=4)
+    with pytest.raises(ValueError, match="requires an evidence grader"):
+        agent.ask("question", semantic_evidence_grading=True)

@@ -4,7 +4,12 @@ from typing import Any, cast
 import pytest
 
 from advanced_rag.generation.chat import OpenAIChatModel, create_chat_model
-from advanced_rag.generation.models import AnswerClaim, GroundedDraft, QueryRewrite
+from advanced_rag.generation.models import (
+    AnswerClaim,
+    EvidenceGrade,
+    GroundedDraft,
+    QueryRewrite,
+)
 from advanced_rag.ingestion.models import ChunkMetadata, DocumentChunk, FileType
 from advanced_rag.retrieval.errors import ChatModelError, EmbeddingConfigurationError
 from advanced_rag.retrieval.hybrid_models import HybridSearchResult
@@ -74,6 +79,26 @@ def test_openai_chat_rewrites_and_rejects_empty_output() -> None:
     model.client = cast(Any, SimpleNamespace(responses=FakeResponses(None)))
     with pytest.raises(ChatModelError, match="no structured output"):
         model.generate_answer(question="Question", evidence=[_result()])
+
+
+def test_openai_chat_grades_direct_evidence_with_structured_output() -> None:
+    model = OpenAIChatModel(api_key="test", model="gpt-4o-mini")
+    responses = FakeResponses(
+        EvidenceGrade(
+            sufficient=True,
+            supporting_labels=["S1"],
+            reason="S1 directly answers the question.",
+        )
+    )
+    model.client = cast(Any, SimpleNamespace(responses=responses))
+
+    grade, usage = model.grade_evidence(question="Question", evidence=[_result()])
+
+    assert grade.sufficient is True
+    assert grade.supporting_labels == ["S1"]
+    assert usage.api_calls == 1
+    assert responses.arguments["text_format"] is EvidenceGrade
+    assert "directly contains enough information" in responses.arguments["instructions"]
 
 
 def test_chat_model_requires_user_api_key() -> None:
