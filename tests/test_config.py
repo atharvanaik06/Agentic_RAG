@@ -14,6 +14,7 @@ def test_settings_have_safe_defaults() -> None:
     assert settings.enable_web_search is False
     assert "monetary" in settings.agent_scope_term_list
     assert settings.agent_max_steps == 8
+    assert settings.agent_semantic_evidence_grading is True
     assert settings.ui_session_question_limit == 10
     assert settings.ui_session_api_call_limit == 20
     assert settings.ui_session_token_budget == 50000

@@ -17,6 +17,7 @@ class AgentState(TypedDict, total=False):
     filters: RetrievalFilters
     top_k: int
     max_retrieval_attempts: int
+    semantic_evidence_grading: bool
     retrieval_attempts: int
     evidence: HybridSearchResponse
     evidence_sufficient: bool

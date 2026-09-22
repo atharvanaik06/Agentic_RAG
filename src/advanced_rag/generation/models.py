@@ -23,6 +23,15 @@ class QueryRewrite(BaseModel):
     query: str = Field(min_length=1, max_length=500)
 
 
+class EvidenceGrade(BaseModel):
+    """Structured judgment of whether retrieved passages can answer the question."""
+
+    sufficient: bool
+    supporting_labels: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=1, max_length=800)
+    missing_information: str | None = Field(default=None, max_length=800)
+
+
 class AnswerClaim(BaseModel):
     """One independently cited factual statement."""
 
