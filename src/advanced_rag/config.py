@@ -61,6 +61,16 @@ class Settings(BaseSettings):
     chat_max_output_tokens: int = Field(default=1200, ge=100, le=16000)
     agent_max_retrieval_attempts: int = Field(default=2, ge=1, le=5)
     agent_top_k: int = Field(default=6, ge=1, le=20)
+    agent_scope_description: str = "monetary policy, central banking, and macro-financial research"
+    agent_scope_terms: str = (
+        "monetary,inflation,disinflation,central bank,central banking,federal reserve,fomc,"
+        "ecb,bis,interest rate,policy rate,financial stress,financial condition,prices,wages,"
+        "profits,employment,labor market,economic growth,macroeconomic,term premium,yield"
+    )
+
+    ui_session_question_limit: int = Field(default=10, ge=0, le=1000)
+    ui_session_api_call_limit: int = Field(default=20, ge=0, le=10000)
+    ui_session_token_budget: int = Field(default=50000, ge=0, le=10000000)
 
     evaluation_dir: Path = Path("reports")
     evaluation_entailment_model: str = "gpt-4o-mini"
@@ -91,6 +101,15 @@ class Settings(BaseSettings):
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
         self.bm25_dir.mkdir(parents=True, exist_ok=True)
         self.reranker_cache_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def agent_scope_term_list(self) -> tuple[str, ...]:
+        """Return normalized comma-separated scope terms for the local domain gate."""
+        return tuple(
+            term
+            for value in self.agent_scope_terms.split(",")
+            if (term := value.strip().casefold())
+        )
 
 
 @lru_cache(maxsize=1)

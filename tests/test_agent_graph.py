@@ -5,6 +5,7 @@ from langchain_core.tools import StructuredTool
 
 from advanced_rag.generation.models import AnswerClaim, GroundedDraft, ModelUsage
 from advanced_rag.graph import AgenticRAG
+from advanced_rag.graph.workflow import question_matches_scope
 from advanced_rag.ingestion.models import ChunkMetadata, DocumentChunk, FileType
 from advanced_rag.retrieval.hybrid_models import (
     HybridSearchResponse,
@@ -120,6 +121,11 @@ def test_graph_answers_with_validated_citations_in_one_attempt() -> None:
     assert answer.answer == "- Demand and supply both contributed. [S1]"
     assert answer.sources[0].filename == "paper.pdf"
     assert answer.sources[0].page_number == 12
+    assert answer.sources[0].text.startswith("Expansionary demand")
+    assert answer.sources[0].dense_rank == 1
+    assert answer.sources[0].sparse_rank == 1
+    assert answer.sources[0].reranker_score == 0.95
+    assert answer.sources[0].retrieval_sources == ("dense", "sparse")
     assert answer.citation_validation.valid is True
     assert answer.retrieval_attempts == 1
     assert answer.usage == ModelUsage(api_calls=1, input_tokens=100, output_tokens=20)
@@ -199,6 +205,42 @@ def test_graph_stops_after_limit_and_skips_generation_without_evidence() -> None
     assert answer.retrieval_attempts == 2
     assert answer.usage.api_calls == 1
     assert chat.generate_calls == 0
+
+
+def test_graph_rejects_out_of_scope_question_before_retrieval_or_generation() -> None:
+    responses = [_response("unused")]
+    chat = FakeChatModel(
+        GroundedDraft(claims=[AnswerClaim(text="Should not be generated.", citations=["S1"])])
+    )
+    agent = AgenticRAG(
+        search_tool=_search_tool(responses),
+        chat_model=chat,
+        scope_description="monetary-policy research",
+        scope_terms=("monetary policy", "inflation", "central bank"),
+    )
+
+    answer = agent.ask("What day was Donald Trump elected?")
+
+    assert answer.insufficient_evidence is True
+    assert "outside the configured scope" in answer.answer
+    assert answer.sources == ()
+    assert answer.retrieval_attempts == 0
+    assert answer.usage.api_calls == 0
+    assert responses  # The search tool was never invoked.
+    assert chat.generate_calls == 0
+    assert [event.node for event in answer.graph_trace] == [
+        "analyze_question",
+        "validate_answer",
+    ]
+
+
+def test_scope_matching_is_phrase_aware_and_optional() -> None:
+    terms = ("monetary policy", "inflation", "fed")
+
+    assert question_matches_scope("How does monetary-policy affect inflation?", terms) is True
+    assert question_matches_scope("What did the Fed decide?", terms) is True
+    assert question_matches_scope("Who won the football match?", terms) is False
+    assert question_matches_scope("Any reusable corpus question", ()) is True
 
 
 def test_graph_validates_public_inputs() -> None:

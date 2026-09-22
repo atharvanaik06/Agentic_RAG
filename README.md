@@ -16,20 +16,34 @@ end-to-end agent benchmarks with machine-readable results and quality gates.
 Launch the Phase 8 Streamlit application shell with:
 
 ```bash
-uv run rag ui
+uv run --no-editable rag ui
 ```
 
-The initial screen verifies that the API key is configured, opens the local
-Chroma and BM25 indexes, compares their chunk counts, and displays the active
-models without exposing secrets. Use a different port or suppress automatic
-browser opening when needed:
+The interface verifies that the API key is configured, opens the local Chroma
+and BM25 indexes, compares their chunk counts, and displays the active models
+without exposing secrets. When the system is ready, the chat view runs the
+existing six-node LangGraph workflow, preserves conversation results for the
+current browser session, and displays validated answers. Every response includes
+separate Answer, Evidence, Agent trace, and Diagnostics tabs. Evidence cards show
+the cited passage, page, chunk ID, dense/BM25 ranks, fusion score, and reranker
+score.
+
+The sidebar provides session-local spending controls for maximum questions, chat
+API calls, and reported chat tokens. A zero value disables that individual limit. The API
+call guard reserves the graph's maximum chat calls before starting, while the token
+guard uses a conservative preflight estimate because final input usage is only
+known after a model responds. These controls are local safeguards, not provider
+billing limits and do not currently count embedding requests. Clearing conversation
+history does not reset the spending ledger; use the separate reset button intentionally.
+
+Use a different port or suppress automatic browser opening when needed:
 
 ```bash
-uv run rag ui --port 8502 --headless
+uv run --no-editable rag ui --port 8502 --headless
 ```
 
-Interactive chat, source inspection, graph traces, document management, and the
-evaluation dashboard are added in the remaining Phase 8 milestones.
+Document management and the evaluation dashboard are added in the remaining
+Phase 8 milestones.
 
 ## Requirements
 
@@ -235,8 +249,9 @@ citations are removed before the answer is returned.
 
 ## Evaluation and regression testing
 
-The included monetary-policy benchmark contains 30 questions: 27 answerable
-questions with source/page targets and 3 deliberately unanswerable questions.
+The included monetary-policy benchmark contains 31 questions: 27 answerable
+questions with source/page targets and 4 deliberately unanswerable or
+out-of-domain questions.
 Run the retrieval evaluation after building both indexes:
 
 ```bash
@@ -363,8 +378,14 @@ plumbing tests or to disable reranking explicitly.
 
 Agent configuration uses `RAG_CHAT_PROVIDER`, `RAG_CHAT_MODEL`,
 `RAG_CHAT_MAX_OUTPUT_TOKENS`, `RAG_AGENT_MAX_RETRIEVAL_ATTEMPTS`, and
-`RAG_AGENT_TOP_K`. The current supported chat provider is OpenAI; the graph
-depends on a small provider protocol so additional providers can be added later.
+`RAG_AGENT_TOP_K`. `RAG_AGENT_SCOPE_DESCRIPTION` and
+`RAG_AGENT_SCOPE_TERMS` configure the inexpensive local domain gate; customize
+them when using a different corpus. The current supported chat provider is
+OpenAI; the graph depends on a small provider protocol so additional providers
+can be added later.
+
+Streamlit spending defaults use `RAG_UI_SESSION_QUESTION_LIMIT`,
+`RAG_UI_SESSION_API_CALL_LIMIT`, and `RAG_UI_SESSION_TOKEN_BUDGET`.
 
 Evaluation configuration uses `RAG_EVALUATION_DIR`,
 `RAG_EVALUATION_ENTAILMENT_MODEL`,

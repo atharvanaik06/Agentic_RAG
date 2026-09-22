@@ -1,6 +1,6 @@
 # Evaluation datasets
 
-`monetary_policy.jsonl` contains 30 benchmark cases for the public monetary-policy
+`monetary_policy.jsonl` contains 31 benchmark cases for the public monetary-policy
 corpus used during development. It stores questions, short reference answers, and
 source/page identifiers rather than copied document passages.
 

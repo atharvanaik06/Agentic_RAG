@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from advanced_rag.config import Settings
 from advanced_rag.evaluation.agent import AgentEvaluator
 from advanced_rag.evaluation.dataset import BenchmarkError, load_benchmark
 from advanced_rag.evaluation.metrics import retrieval_metrics
@@ -27,6 +28,7 @@ from advanced_rag.generation.models import (
     GraphTraceEvent,
     ModelUsage,
 )
+from advanced_rag.graph.workflow import question_matches_scope
 from advanced_rag.ingestion.models import ChunkMetadata, DocumentChunk, FileType
 from advanced_rag.retrieval.hybrid_models import (
     HybridSearchResponse,
@@ -135,8 +137,12 @@ def _diagnostics() -> RetrievalDiagnostics:
 
 def test_benchmark_loader_validates_jsonl_and_seed_dataset(tmp_path: Path) -> None:
     seed = load_benchmark("evaluations/monetary_policy.jsonl")
-    assert len(seed) == 30
+    assert len(seed) == 31
     assert sum(case.answerable for case in seed) == 27
+    scope_terms = Settings(_env_file=None).agent_scope_term_list
+    assert all(
+        question_matches_scope(case.question, scope_terms) for case in seed if case.answerable
+    )
 
     duplicate = tmp_path / "duplicate.jsonl"
     record = _case().model_dump_json()

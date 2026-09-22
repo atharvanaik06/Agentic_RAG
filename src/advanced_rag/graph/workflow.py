@@ -1,5 +1,6 @@
 """Bounded LangGraph workflow for grounded, citation-validated RAG answers."""
 
+import re
 from typing import Any, Literal, cast
 
 from langchain_core.tools import BaseTool
@@ -34,6 +35,8 @@ class AgenticRAG:
         chat_model: ChatModel,
         max_retrieval_attempts: int = 2,
         top_k: int = 6,
+        scope_description: str | None = None,
+        scope_terms: tuple[str, ...] = (),
     ) -> None:
         if not 1 <= max_retrieval_attempts <= 5:
             raise ValueError("max_retrieval_attempts must be between 1 and 5")
@@ -43,6 +46,8 @@ class AgenticRAG:
         self.chat_model = chat_model
         self.max_retrieval_attempts = max_retrieval_attempts
         self.top_k = top_k
+        self.scope_description = scope_description
+        self.scope_terms = tuple(term for term in scope_terms if term.strip())
         self.graph = self._build_graph()
 
     def ask(
@@ -88,7 +93,11 @@ class AgenticRAG:
         builder.add_node("generate_answer", self._generate_answer)
         builder.add_node("validate_answer", self._validate_answer)
         builder.add_edge(START, "analyze_question")
-        builder.add_edge("analyze_question", "retrieve_evidence")
+        builder.add_conditional_edges(
+            "analyze_question",
+            self._route_after_analysis,
+            {"retrieve_evidence": "retrieve_evidence", "validate_answer": "validate_answer"},
+        )
         builder.add_edge("retrieve_evidence", "grade_evidence")
         builder.add_conditional_edges(
             "grade_evidence",
@@ -102,10 +111,26 @@ class AgenticRAG:
 
     def _analyze_question(self, state: AgentState) -> AgentState:
         query = " ".join(state["question"].split())
+        in_scope = question_matches_scope(query, self.scope_terms)
+        if not in_scope:
+            description = self.scope_description or "the configured document domain"
+            reason = f"Question is outside the configured scope: {description}."
+            return {
+                "current_query": query,
+                "question_in_scope": False,
+                "evidence": _empty_evidence(query, reason),
+                "draft": GroundedDraft(insufficient_evidence=True, limitation=reason),
+                "trace": [self._event("analyze_question", "rejected_out_of_scope", reason, state)],
+            }
         return {
             "current_query": query,
+            "question_in_scope": True,
             "trace": [self._event("analyze_question", "prepared_query", query, state)],
         }
+
+    @staticmethod
+    def _route_after_analysis(state: AgentState) -> Literal["retrieve_evidence", "validate_answer"]:
+        return "retrieve_evidence" if state["question_in_scope"] else "validate_answer"
 
     def _retrieve_evidence(self, state: AgentState) -> AgentState:
         attempt = state.get("retrieval_attempts", 0) + 1
@@ -287,6 +312,16 @@ def _render_answer(
             filename=label_map[label].chunk.metadata.filename,
             title=label_map[label].chunk.metadata.title,
             page_number=label_map[label].chunk.metadata.page_number,
+            text=label_map[label].chunk.text,
+            token_count=label_map[label].chunk.token_count,
+            final_rank=label_map[label].final_rank,
+            dense_rank=label_map[label].dense_rank,
+            dense_score=label_map[label].dense_score,
+            sparse_rank=label_map[label].sparse_rank,
+            sparse_score=label_map[label].sparse_score,
+            rrf_score=label_map[label].rrf_score,
+            reranker_score=label_map[label].reranker_score,
+            retrieval_sources=label_map[label].retrieval_sources,
         )
         for label in sorted(cited_labels, key=lambda value: int(value[1:]))
     )
@@ -361,3 +396,19 @@ def _usage_update(usage: ModelUsage) -> AgentState:
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
     }
+
+
+def question_matches_scope(question: str, scope_terms: tuple[str, ...]) -> bool:
+    """Return whether a question contains a configured domain term.
+
+    An empty term list disables the optional domain gate for reusable library callers.
+    """
+    if not scope_terms:
+        return True
+    normalized_question = " ".join(re.findall(r"\w+", question.casefold()))
+    padded_question = f" {normalized_question} "
+    return any(
+        f" {' '.join(re.findall(r'\w+', term.casefold()))} " in padded_question
+        for term in scope_terms
+        if term.strip()
+    )

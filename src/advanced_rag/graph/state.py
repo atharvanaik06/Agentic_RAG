@@ -13,6 +13,7 @@ class AgentState(TypedDict, total=False):
 
     question: str
     current_query: str
+    question_in_scope: bool
     filters: RetrievalFilters
     top_k: int
     max_retrieval_attempts: int

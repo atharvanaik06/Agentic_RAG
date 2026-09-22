@@ -2,10 +2,13 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 from streamlit.testing.v1 import AppTest
 
-from advanced_rag.config import get_settings
+from advanced_rag.config import Settings, get_settings
+from advanced_rag.interfaces.streamlit_app import _readiness
 from advanced_rag.interfaces.ui import launch_streamlit, streamlit_script_path
+from advanced_rag.retrieval.models import CollectionInfo, SparseIndexInfo
 
 
 def test_ui_launcher_uses_active_python_without_a_shell(
@@ -48,6 +51,7 @@ def test_streamlit_shell_reports_empty_indexes(
     monkeypatch.setenv("RAG_CHROMA_COLLECTION", "ui-test")
     monkeypatch.setenv("RAG_EMBEDDING_PROVIDER", "deterministic")
     monkeypatch.setenv("RAG_EMBEDDING_DIMENSIONS", "32")
+    monkeypatch.setenv("RAG_OPENAI_API_KEY", "test-key")
     get_settings.cache_clear()
 
     app = AppTest.from_file(streamlit_script_path()).run(timeout=10)
@@ -56,4 +60,41 @@ def test_streamlit_shell_reports_empty_indexes(
     assert app.title[0].value == "Advanced Agentic RAG"
     assert [metric.value for metric in app.metric] == ["Configured", "0", "0"]
     assert "Build both indexes" in app.warning[0].value
+    assert app.chat_input[0].disabled is True
     get_settings.cache_clear()
+
+
+def test_chat_readiness_requires_key_nonempty_matching_indexes() -> None:
+    dense = CollectionInfo(
+        name="test",
+        count=4,
+        path="dense",
+        embedding_provider="openai",
+        embedding_model="test",
+        embedding_dimensions=8,
+    )
+    sparse = SparseIndexInfo(
+        path="sparse",
+        count=4,
+        method="lucene",
+        k1=1.5,
+        b=0.75,
+        fingerprint="abc",
+        schema_version=1,
+    )
+
+    ready = _readiness(
+        Settings(_env_file=None, openai_api_key=SecretStr("test-key")),
+        dense,
+        sparse,
+    )
+    missing_key = _readiness(Settings(_env_file=None), dense, sparse)
+    mismatched = _readiness(
+        Settings(_env_file=None, openai_api_key=SecretStr("test-key")),
+        dense,
+        sparse.model_copy(update={"count": 3}),
+    )
+
+    assert ready.ready is True
+    assert missing_key.ready is False
+    assert mismatched.ready is False

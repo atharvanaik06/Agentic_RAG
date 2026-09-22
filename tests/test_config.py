@@ -12,6 +12,10 @@ def test_settings_have_safe_defaults() -> None:
     assert settings.environment == "development"
     assert settings.openai_api_key is None
     assert settings.enable_web_search is False
+    assert "monetary" in settings.agent_scope_term_list
+    assert settings.ui_session_question_limit == 10
+    assert settings.ui_session_api_call_limit == 20
+    assert settings.ui_session_token_budget == 50000
 
 
 def test_settings_read_prefixed_environment(monkeypatch: pytest.MonkeyPatch) -> None:
