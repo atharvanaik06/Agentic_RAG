@@ -19,10 +19,12 @@ from advanced_rag.interfaces.documents import (
     save_uploads,
     synchronize_corpus,
 )
+from advanced_rag.interfaces.evaluation_ui import render_evaluation_dashboard
 from advanced_rag.interfaces.spending import (
     SessionUsage,
     SpendingDecision,
     SpendingLimits,
+    conservative_request_token_reserve,
     spending_decision,
 )
 from advanced_rag.retrieval.dense import ChromaDenseIndex
@@ -573,23 +575,6 @@ def _format_score(value: float | None) -> str:
     return "—" if value is None else f"{value:.4f}"
 
 
-def _request_token_reserve(
-    settings: Settings,
-    max_retrieval_attempts: int,
-    *,
-    semantic_evidence_grading: bool,
-) -> int:
-    """Return a conservative preflight estimate, not a provider billing guarantee."""
-    reserve = (
-        settings.hybrid_context_token_budget
-        + settings.chat_max_output_tokens
-        + 1000 * max_retrieval_attempts
-    )
-    if semantic_evidence_grading:
-        reserve += max_retrieval_attempts * (settings.hybrid_context_token_budget + 500)
-    return reserve
-
-
 def _render_spending_status(
     decision: SpendingDecision,
     usage: SessionUsage,
@@ -650,12 +635,21 @@ def main() -> None:
         corpus_current=corpus_current,
     )
     _render_document_management(runtime, dense_info, sparse_info)
+    render_evaluation_dashboard(
+        settings=runtime.settings,
+        dense=runtime.dense,
+        sparse=runtime.sparse,
+        agent_factory=load_agent,
+        limits=options.limits,
+        usage=usage,
+        indexes_ready=readiness.ready,
+    )
     budget = spending_decision(
         options.limits,
         usage,
         api_call_reserve=options.max_retrieval_attempts
         * (2 if options.semantic_evidence_grading else 1),
-        token_reserve=_request_token_reserve(
+        token_reserve=conservative_request_token_reserve(
             runtime.settings,
             options.max_retrieval_attempts,
             semantic_evidence_grading=options.semantic_evidence_grading,

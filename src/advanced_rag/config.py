@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     ui_session_token_budget: int = Field(default=50000, ge=0, le=10000000)
     ui_max_upload_mb: int = Field(default=100, ge=1, le=1000)
 
+    evaluation_benchmark_dir: Path = Path("evaluations")
     evaluation_dir: Path = Path("reports")
     evaluation_entailment_model: str = "gpt-4o-mini"
     evaluation_hybrid_recall_threshold: float = Field(default=0.75, ge=0, le=1)

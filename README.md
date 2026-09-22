@@ -44,6 +44,16 @@ When indexes already contain data, the interface requires confirmation before
 synchronizing them. Uploading or deleting a file pauses chat for that browser
 session until both indexes are rebuilt, preventing queries against stale data.
 
+The **Evaluation dashboard** loads benchmarks from `evaluations/`, displays
+saved retrieval and agent reports, applies the configured regression gates, and
+provides guarded smoke-run controls. Retrieval runs require confirmation because
+dense queries use the embedding API. Agent runs reserve their full case count,
+worst-case chat calls, and conservative token estimate against the same session
+spending controls used by chat. The default three-case smoke run fits the default
+limits; a complete benchmark requires raising or disabling those limits
+intentionally. Claim-level entailment judging remains CLI-only because its API
+call count depends on the number of generated claims.
+
 The sidebar provides session-local spending controls for maximum questions,
 chat API calls, and reported chat tokens. A zero value disables that individual
 limit. The API call guard reserves the graph's maximum chat calls before
@@ -59,7 +69,7 @@ Use a different port or suppress automatic browser opening when needed:
 uv run --no-editable rag ui --port 8502 --headless
 ```
 
-The evaluation dashboard is the remaining Phase 8 interface milestone.
+This completes the planned Phase 8 local interface milestones.
 
 ## Requirements
 
@@ -328,6 +338,10 @@ default gates cover hybrid recall, citation validity, refusal accuracy, and
 average retrieval attempts and can be adjusted with the `RAG_EVALUATION_*`
 settings in `.env`.
 
+The same deterministic retrieval and agent evaluations can be launched from the
+Streamlit **Evaluation dashboard**. Saved reports survive application restarts,
+while the underlying `reports/` directory remains local and ignored by Git.
+
 The first 27-case retrieval baseline on the development corpus achieved 0.870
 Recall@5 and a 0.926 source-hit rate for the final reranked hybrid method. The
 reranker improved one target rank, left 19 unchanged, worsened three, and did
@@ -420,7 +434,8 @@ Streamlit spending defaults use `RAG_UI_SESSION_QUESTION_LIMIT`,
 `RAG_UI_SESSION_API_CALL_LIMIT`, and `RAG_UI_SESSION_TOKEN_BUDGET`. The
 per-file upload ceiling uses `RAG_UI_MAX_UPLOAD_MB`.
 
-Evaluation configuration uses `RAG_EVALUATION_DIR`,
+Evaluation configuration uses `RAG_EVALUATION_BENCHMARK_DIR`,
+`RAG_EVALUATION_DIR`,
 `RAG_EVALUATION_ENTAILMENT_MODEL`,
 `RAG_EVALUATION_HYBRID_RECALL_THRESHOLD`,
 `RAG_EVALUATION_CITATION_VALIDITY_THRESHOLD`,
