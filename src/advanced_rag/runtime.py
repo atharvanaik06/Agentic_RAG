@@ -63,6 +63,7 @@ def create_agent(
         search_tool=create_search_knowledge_base_tool(retriever),
         chat_model=create_chat_model(settings),
         max_retrieval_attempts=settings.agent_max_retrieval_attempts,
+        max_agent_steps=settings.agent_max_steps,
         top_k=settings.agent_top_k,
         scope_description=settings.agent_scope_description,
         scope_terms=settings.agent_scope_term_list,

@@ -28,13 +28,30 @@ separate Answer, Evidence, Agent trace, and Diagnostics tabs. Evidence cards sho
 the cited passage, page, chunk ID, dense/BM25 ranks, fusion score, and reranker
 score.
 
-The sidebar provides session-local spending controls for maximum questions, chat
-API calls, and reported chat tokens. A zero value disables that individual limit. The API
-call guard reserves the graph's maximum chat calls before starting, while the token
-guard uses a conservative preflight estimate because final input usage is only
-known after a model responds. These controls are local safeguards, not provider
-billing limits and do not currently count embedding requests. Clearing conversation
-history does not reset the spending ledger; use the separate reset button intentionally.
+The **Documents & indexes** panel provides a local corpus workflow:
+
+- Upload PDF, Markdown, and TXT files into `data/raw` without indexing them
+  automatically.
+- Inspect extraction results, page counts, chunks, tokens, duplicates, and
+  failures without making a model API call.
+- Delete selected source files only after explicit confirmation.
+- Synchronize Chroma and BM25 from the same canonical ingestion result. If any
+  supported document fails extraction, neither synchronization begins.
+- Skip embeddings for unchanged Chroma chunks and report exactly how many were
+  embedded, retained, or deleted.
+
+When indexes already contain data, the interface requires confirmation before
+synchronizing them. Uploading or deleting a file pauses chat for that browser
+session until both indexes are rebuilt, preventing queries against stale data.
+
+The sidebar provides session-local spending controls for maximum questions,
+chat API calls, and reported chat tokens. A zero value disables that individual
+limit. The API call guard reserves the graph's maximum chat calls before
+starting, while the token guard uses a conservative preflight estimate because
+final input usage is only known after a model responds. These controls are local
+safeguards, not provider billing limits, and do not currently count embedding
+requests. Clearing conversation history does not reset the spending ledger; use
+the separate reset button intentionally.
 
 Use a different port or suppress automatic browser opening when needed:
 
@@ -42,8 +59,7 @@ Use a different port or suppress automatic browser opening when needed:
 uv run --no-editable rag ui --port 8502 --headless
 ```
 
-Document management and the evaluation dashboard are added in the remaining
-Phase 8 milestones.
+The evaluation dashboard is the remaining Phase 8 interface milestone.
 
 ## Requirements
 
@@ -241,6 +257,11 @@ Question analysis, retrieval grading, routing, citation validation, and final
 rendering run locally. The graph makes one chat-model call for answer generation.
 It makes one additional call only when weak evidence triggers query rewriting.
 `RAG_AGENT_MAX_RETRIEVAL_ATTEMPTS` is bounded from 1 to 5 and defaults to 2.
+`RAG_AGENT_MAX_STEPS` defaults to 8. In Streamlit, users can select zero to
+four retrieval retries and a five-to-seventeen-step graph budget per question.
+The base answer path uses five nodes, and each permitted rewrite-and-retrieval
+cycle requires three more nodes. If the step budget cannot accommodate all
+selected retries, the smaller safe limit is used.
 Web search is not part of this graph and remains disabled by default.
 
 Answers are generated as structured claims whose `S1`, `S2`, etc. references
@@ -249,7 +270,7 @@ citations are removed before the answer is returned.
 
 ## Evaluation and regression testing
 
-The included monetary-policy benchmark contains 31 questions: 27 answerable
+The included monetary-policy benchmark contains 33 questions: 29 answerable
 questions with source/page targets and 4 deliberately unanswerable or
 out-of-domain questions.
 Run the retrieval evaluation after building both indexes:
@@ -378,14 +399,15 @@ plumbing tests or to disable reranking explicitly.
 
 Agent configuration uses `RAG_CHAT_PROVIDER`, `RAG_CHAT_MODEL`,
 `RAG_CHAT_MAX_OUTPUT_TOKENS`, `RAG_AGENT_MAX_RETRIEVAL_ATTEMPTS`, and
-`RAG_AGENT_TOP_K`. `RAG_AGENT_SCOPE_DESCRIPTION` and
+`RAG_AGENT_MAX_STEPS`, and `RAG_AGENT_TOP_K`. `RAG_AGENT_SCOPE_DESCRIPTION` and
 `RAG_AGENT_SCOPE_TERMS` configure the inexpensive local domain gate; customize
 them when using a different corpus. The current supported chat provider is
 OpenAI; the graph depends on a small provider protocol so additional providers
 can be added later.
 
 Streamlit spending defaults use `RAG_UI_SESSION_QUESTION_LIMIT`,
-`RAG_UI_SESSION_API_CALL_LIMIT`, and `RAG_UI_SESSION_TOKEN_BUDGET`.
+`RAG_UI_SESSION_API_CALL_LIMIT`, and `RAG_UI_SESSION_TOKEN_BUDGET`. The
+per-file upload ceiling uses `RAG_UI_MAX_UPLOAD_MB`.
 
 Evaluation configuration uses `RAG_EVALUATION_DIR`,
 `RAG_EVALUATION_ENTAILMENT_MODEL`,

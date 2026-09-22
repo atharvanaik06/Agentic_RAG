@@ -34,17 +34,21 @@ class AgenticRAG:
         search_tool: BaseTool,
         chat_model: ChatModel,
         max_retrieval_attempts: int = 2,
+        max_agent_steps: int = 8,
         top_k: int = 6,
         scope_description: str | None = None,
         scope_terms: tuple[str, ...] = (),
     ) -> None:
         if not 1 <= max_retrieval_attempts <= 5:
             raise ValueError("max_retrieval_attempts must be between 1 and 5")
+        if not 5 <= max_agent_steps <= 100:
+            raise ValueError("max_agent_steps must be between 5 and 100")
         if not 1 <= top_k <= 20:
             raise ValueError("top_k must be between 1 and 20")
         self.search_tool = search_tool
         self.chat_model = chat_model
         self.max_retrieval_attempts = max_retrieval_attempts
+        self.max_agent_steps = max_agent_steps
         self.top_k = top_k
         self.scope_description = scope_description
         self.scope_terms = tuple(term for term in scope_terms if term.strip())
@@ -56,6 +60,8 @@ class AgenticRAG:
         *,
         filters: RetrievalFilters | None = None,
         top_k: int | None = None,
+        max_retrieval_attempts: int | None = None,
+        max_agent_steps: int | None = None,
     ) -> AgentAnswer:
         """Run one bounded graph invocation and return its validated answer."""
         if not question.strip():
@@ -63,11 +69,22 @@ class AgenticRAG:
         result_limit = top_k or self.top_k
         if not 1 <= result_limit <= 20:
             raise ValueError("top_k must be between 1 and 20")
+        requested_attempts = (
+            self.max_retrieval_attempts
+            if max_retrieval_attempts is None
+            else max_retrieval_attempts
+        )
+        if not 1 <= requested_attempts <= 5:
+            raise ValueError("max_retrieval_attempts must be between 1 and 5")
+        step_limit = self.max_agent_steps if max_agent_steps is None else max_agent_steps
+        if not 5 <= step_limit <= 100:
+            raise ValueError("max_agent_steps must be between 5 and 100")
+        attempt_limit = bounded_retrieval_attempts(requested_attempts, step_limit)
         initial: AgentState = {
             "question": question.strip(),
             "filters": filters or RetrievalFilters(),
             "top_k": result_limit,
-            "max_retrieval_attempts": self.max_retrieval_attempts,
+            "max_retrieval_attempts": attempt_limit,
             "retrieval_attempts": 0,
             "trace": [],
             "errors": [],
@@ -77,7 +94,7 @@ class AgenticRAG:
         }
         state = cast(
             AgentState,
-            self.graph.invoke(initial, {"recursion_limit": 4 * self.max_retrieval_attempts + 8}),
+            self.graph.invoke(initial, {"recursion_limit": step_limit + 3}),
         )
         answer = state.get("final_answer")
         if answer is None:
@@ -398,17 +415,48 @@ def _usage_update(usage: ModelUsage) -> AgentState:
     }
 
 
+def bounded_retrieval_attempts(requested_attempts: int, max_agent_steps: int) -> int:
+    """Fit retrieval attempts into a graph budget of five base and three retry steps."""
+    if not 1 <= requested_attempts <= 5:
+        raise ValueError("requested_attempts must be between 1 and 5")
+    if not 5 <= max_agent_steps <= 100:
+        raise ValueError("max_agent_steps must be between 5 and 100")
+    attempts_allowed_by_steps = max(1, (max_agent_steps - 2) // 3)
+    return min(requested_attempts, attempts_allowed_by_steps)
+
+
 def question_matches_scope(question: str, scope_terms: tuple[str, ...]) -> bool:
-    """Return whether a question contains a configured domain term.
+    """Return whether a question contains a configured domain phrase.
 
     An empty term list disables the optional domain gate for reusable library callers.
     """
     if not scope_terms:
         return True
-    normalized_question = " ".join(re.findall(r"\w+", question.casefold()))
-    padded_question = f" {normalized_question} "
+    question_tokens = re.findall(r"\w+", question.casefold())
+    for term in scope_terms:
+        term_tokens = re.findall(r"\w+", term.casefold())
+        if term_tokens and _contains_scope_phrase(question_tokens, term_tokens):
+            return True
+    return False
+
+
+def _contains_scope_phrase(question_tokens: list[str], term_tokens: list[str]) -> bool:
+    """Match one contiguous phrase while tolerating a simple English plural suffix."""
+    width = len(term_tokens)
     return any(
-        f" {' '.join(re.findall(r'\w+', term.casefold()))} " in padded_question
-        for term in scope_terms
-        if term.strip()
+        all(
+            _scope_words_match(question_word, term_word)
+            for question_word, term_word in zip(
+                question_tokens[start : start + width], term_tokens, strict=True
+            )
+        )
+        for start in range(len(question_tokens) - width + 1)
     )
+
+
+def _scope_words_match(question_word: str, term_word: str) -> bool:
+    if question_word == term_word:
+        return True
+    if len(term_word) < 3:
+        return False
+    return question_word in {f"{term_word}s", f"{term_word}es"}
