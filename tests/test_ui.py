@@ -58,9 +58,14 @@ def test_streamlit_shell_reports_empty_indexes(
 
     assert not app.exception
     assert app.title[0].value == "Advanced Agentic RAG"
-    assert [metric.value for metric in app.metric] == ["Configured", "0", "0"]
+    assert [metric.value for metric in app.metric[:3]] == ["Configured", "0", "0"]
     assert "Build both indexes" in app.warning[0].value
     assert app.chat_input[0].disabled is True
+    assert {slider.label for slider in app.slider} >= {
+        "Evidence chunks",
+        "Maximum retrieval retries",
+        "Maximum agent steps",
+    }
     get_settings.cache_clear()
 
 

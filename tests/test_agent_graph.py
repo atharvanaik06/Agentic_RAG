@@ -5,7 +5,7 @@ from langchain_core.tools import StructuredTool
 
 from advanced_rag.generation.models import AnswerClaim, GroundedDraft, ModelUsage
 from advanced_rag.graph import AgenticRAG
-from advanced_rag.graph.workflow import question_matches_scope
+from advanced_rag.graph.workflow import bounded_retrieval_attempts, question_matches_scope
 from advanced_rag.ingestion.models import ChunkMetadata, DocumentChunk, FileType
 from advanced_rag.retrieval.hybrid_models import (
     HybridSearchResponse,
@@ -207,6 +207,37 @@ def test_graph_stops_after_limit_and_skips_generation_without_evidence() -> None
     assert chat.generate_calls == 0
 
 
+def test_per_question_step_budget_bounds_selected_retries() -> None:
+    responses = [
+        _response("first", confidence="low", results=False),
+        _response("unused", confidence="low", results=False),
+    ]
+    chat = FakeChatModel(GroundedDraft())
+    agent = AgenticRAG(
+        search_tool=_search_tool(responses),
+        chat_model=chat,
+        max_retrieval_attempts=5,
+        max_agent_steps=17,
+    )
+
+    answer = agent.ask(
+        "Unanswerable question",
+        max_retrieval_attempts=5,
+        max_agent_steps=5,
+    )
+
+    assert answer.retrieval_attempts == 1
+    assert len(answer.graph_trace) == 5
+    assert chat.rewrite_calls == 0
+    assert len(responses) == 1
+
+
+def test_retrieval_attempt_capacity_uses_three_steps_per_retry() -> None:
+    assert bounded_retrieval_attempts(5, 5) == 1
+    assert bounded_retrieval_attempts(5, 8) == 2
+    assert bounded_retrieval_attempts(5, 17) == 5
+
+
 def test_graph_rejects_out_of_scope_question_before_retrieval_or_generation() -> None:
     responses = [_response("unused")]
     chat = FakeChatModel(
@@ -235,10 +266,12 @@ def test_graph_rejects_out_of_scope_question_before_retrieval_or_generation() ->
 
 
 def test_scope_matching_is_phrase_aware_and_optional() -> None:
-    terms = ("monetary policy", "inflation", "fed")
+    terms = ("monetary policy", "inflation", "fed", "interest rate")
 
     assert question_matches_scope("How does monetary-policy affect inflation?", terms) is True
     assert question_matches_scope("What did the Fed decide?", terms) is True
+    assert question_matches_scope("What is the Fed's current view of the market?", terms) is True
+    assert question_matches_scope("What are the current interest rates?", terms) is True
     assert question_matches_scope("Who won the football match?", terms) is False
     assert question_matches_scope("Any reusable corpus question", ()) is True
 
@@ -258,3 +291,5 @@ def test_graph_validates_public_inputs() -> None:
             chat_model=FakeChatModel(GroundedDraft()),
             max_retrieval_attempts=6,
         )
+    with pytest.raises(ValueError, match="max_agent_steps"):
+        agent.ask("question", max_agent_steps=4)

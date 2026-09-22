@@ -137,8 +137,8 @@ def _diagnostics() -> RetrievalDiagnostics:
 
 def test_benchmark_loader_validates_jsonl_and_seed_dataset(tmp_path: Path) -> None:
     seed = load_benchmark("evaluations/monetary_policy.jsonl")
-    assert len(seed) == 31
-    assert sum(case.answerable for case in seed) == 27
+    assert len(seed) == 33
+    assert sum(case.answerable for case in seed) == 29
     scope_terms = Settings(_env_file=None).agent_scope_term_list
     assert all(
         question_matches_scope(case.question, scope_terms) for case in seed if case.answerable
