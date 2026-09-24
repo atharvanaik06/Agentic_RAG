@@ -3,8 +3,8 @@
 A controlled agentic retrieval-augmented generation project using LangGraph,
 ChromaDB, hybrid dense/BM25 retrieval, and reranking.
 
-The repository has completed **Phase 7: evaluation and regression testing**, and
-the Phase 8 Streamlit interface is in progress. It can
+The repository has completed **Phase 8: local interface and evaluation dashboard** and
+is adding Phase 9 reproducible container packaging. It can
 discover, load, normalize, and chunk PDF, Markdown, and TXT sources; retrieve
 from persistent ChromaDB and BM25 indexes in parallel; fuse rankings; rerank
 locally; conditionally rewrite weak searches; generate grounded answers; and
@@ -75,6 +75,7 @@ This completes the planned Phase 8 local interface milestones.
 
 - Python 3.12 or newer
 - [`uv`](https://docs.astral.sh/uv/) (recommended)
+- Docker Desktop or Docker Engine with Compose (optional container workflow)
 
 ## Setup
 
@@ -95,6 +96,59 @@ cp .env.example .env
 
 The smoke command prints the application name, version, and active
 environment without exposing secrets.
+
+## Docker setup
+
+The container workflow installs the production dependencies from `uv.lock`, runs
+the application as a non-root user, exposes Streamlit only on the local machine,
+and persists all mutable data through host-mounted directories.
+
+```bash
+cp .env.example .env
+# Add your RAG_OPENAI_API_KEY to .env, then:
+docker compose up --build
+```
+
+Open <http://localhost:8501>. Docker reports the service as healthy after the
+Streamlit health endpoint responds. The first image build downloads Python
+dependencies, and the first hybrid search downloads the small FlashRank model.
+
+The following host directories are mounted into the container, so rebuilding or
+removing the container does not delete the local corpus or generated state:
+
+| Host directory | Container directory | Purpose |
+| --- | --- | --- |
+| `data/raw` | `/app/data/raw` | User documents |
+| `data/indexes` | `/app/data/indexes` | Chroma and BM25 indexes |
+| `data/models` | `/app/data/models` | Local reranker cache |
+| `reports` | `/app/reports` | Generated evaluation reports |
+
+Documents can be uploaded and indexed in Streamlit. The CLI is also available
+inside one-off containers:
+
+```bash
+docker compose run --rm rag rag ingest data/raw
+docker compose run --rm rag rag index data/raw
+docker compose run --rm rag rag index-sparse data/raw
+docker compose run --rm rag rag ask "What drove post-pandemic inflation?"
+```
+
+Stop the application with `docker compose down`. The bind-mounted files remain
+on the host.
+
+On Linux systems where the local account does not use UID/GID 1000, export
+`APP_UID` and `APP_GID` before the first build so mounted directories stay
+writable:
+
+```bash
+export APP_UID="$(id -u)"
+export APP_GID="$(id -g)"
+docker compose up --build
+```
+
+The `.env` file is supplied at runtime and excluded from both Git and the Docker
+build context. Documents, indexes, cached models, and reports are also excluded
+from image layers.
 
 For a first local run, add your own `RAG_OPENAI_API_KEY` to `.env`, copy
 documents into `data/raw`, and build both indexes:
