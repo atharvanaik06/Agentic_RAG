@@ -20,6 +20,7 @@ def test_settings_have_safe_defaults() -> None:
     assert settings.ui_session_token_budget == 50000
     assert settings.ui_max_upload_mb == 100
     assert settings.evaluation_benchmark_dir == Path("evaluations")
+    assert settings.evaluation_answerable_success_threshold == 0.8
 
 
 def test_settings_read_prefixed_environment(monkeypatch: pytest.MonkeyPatch) -> None:

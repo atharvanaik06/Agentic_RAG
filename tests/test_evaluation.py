@@ -1,3 +1,4 @@
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -12,8 +13,12 @@ from advanced_rag.evaluation.models import (
     EntailmentResult,
     GoldTarget,
     RegressionThresholds,
+    RerankerSummary,
+    RetrievalCaseResult,
+    RetrievalEvaluationReport,
 )
 from advanced_rag.evaluation.reporting import (
+    answerable_refusal_diagnostics,
     load_agent_report,
     load_retrieval_report,
     regression_result,
@@ -292,6 +297,8 @@ def test_agent_evaluator_scores_answers_refusals_and_optional_entailment(
     ).evaluate([answerable, unanswerable], benchmark_name="test")
 
     assert report.summary.citation_validity_rate == 1.0
+    assert report.summary.answerable_success_rate == 1.0
+    assert report.summary.answerable_refusal_rate == 0.0
     assert report.summary.refusal_accuracy == 1.0
     assert report.summary.concept_coverage == 1.0
     assert report.summary.entailment_support_rate == 1.0
@@ -305,8 +312,10 @@ def test_agent_evaluator_scores_answers_refusals_and_optional_entailment(
         thresholds=RegressionThresholds(),
     )
     assert regression.passed is False  # Average attempts are 2.0, above the 1.5 gate.
+    assert regression.checks["answerable_success_rate"] is True
     markdown = render_markdown(retrieval=None, agent=report, regression=regression)
     assert "# Evaluation Summary" in markdown
+    assert "| Answerable success | 1.000 |" in markdown
     assert "Overall: **FAIL**" in markdown
 
 
@@ -322,3 +331,63 @@ def test_regression_skips_refusal_gate_when_run_has_no_unanswerable_cases() -> N
     assert regression.passed is False  # The fake agent still exceeds the attempts gate.
     assert "refusal_accuracy" not in regression.checks
     assert report.summary.refusal_accuracy is None
+
+
+def test_loading_old_agent_report_backfills_answerable_rates(tmp_path: Path) -> None:
+    report = AgentEvaluator(agent=FakeAgent()).evaluate([_case()], benchmark_name="legacy")
+    payload = report.model_dump(mode="json")
+    payload["summary"].pop("answerable_success_rate")
+    payload["summary"].pop("answerable_refusal_rate")
+    path = tmp_path / "legacy-agent.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_agent_report(path)
+
+    assert loaded.summary.answerable_success_rate == 1.0
+    assert loaded.summary.answerable_refusal_rate == 0.0
+
+
+def test_answerable_success_gate_and_refusal_diagnostics() -> None:
+    agent = AgentEvaluator(agent=FakeAgent()).evaluate([_case()], benchmark_name="test")
+    refused_result = agent.results[0].model_copy(update={"refused": True, "refusal_correct": False})
+    agent = agent.model_copy(update={"results": (refused_result,)})
+    retrieval_case = RetrievalCaseResult(
+        case_id="case-1",
+        category="single_document",
+        method="hybrid_reranked",
+        recall_at_k=1,
+        precision_at_k=1,
+        reciprocal_rank=1,
+        average_precision=1,
+        ndcg_at_k=1,
+        source_hit=True,
+        page_hit=True,
+        latency_ms=1,
+        records=(),
+    )
+    retrieval = RetrievalEvaluationReport(
+        benchmark="test",
+        top_k=1,
+        cases=1,
+        results=(retrieval_case,),
+        summaries=(),
+        reranker=RerankerSummary(
+            improved=0,
+            unchanged=1,
+            worsened=0,
+            missing=0,
+            average_rank_change=0,
+        ),
+    )
+
+    regression = regression_result(
+        retrieval=None,
+        agent=agent,
+        thresholds=RegressionThresholds(),
+    )
+    diagnostics = answerable_refusal_diagnostics(retrieval=retrieval, agent=agent)
+
+    assert regression.checks["answerable_success_rate"] is False
+    assert diagnostics.incorrect_refusal_ids == ("case-1",)
+    assert diagnostics.expected_source_retrieved_ids == ("case-1",)
+    assert diagnostics.expected_source_missing_ids == ()

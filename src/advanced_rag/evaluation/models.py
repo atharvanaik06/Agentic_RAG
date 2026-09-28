@@ -169,6 +169,8 @@ class AgentSummary(BaseModel):
     citation_validity_rate: float = Field(ge=0, le=1)
     expected_source_hit_rate: float = Field(ge=0, le=1)
     concept_coverage: float = Field(ge=0, le=1)
+    answerable_success_rate: float | None = Field(default=None, ge=0, le=1)
+    answerable_refusal_rate: float | None = Field(default=None, ge=0, le=1)
     refusal_accuracy: float | None = Field(default=None, ge=0, le=1)
     rewrite_rate: float = Field(ge=0, le=1)
     average_retrieval_attempts: float = Field(ge=0)
@@ -197,6 +199,7 @@ class RegressionThresholds(BaseModel):
 
     hybrid_recall_at_k: float = Field(default=0.75, ge=0, le=1)
     citation_validity_rate: float = Field(default=1.0, ge=0, le=1)
+    answerable_success_rate: float = Field(default=0.8, ge=0, le=1)
     refusal_accuracy: float = Field(default=0.8, ge=0, le=1)
     maximum_average_retrieval_attempts: float = Field(default=1.5, ge=1)
 

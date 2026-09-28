@@ -212,18 +212,21 @@ class AgenticRAG:
                     question=state["question"],
                     evidence=evidence.results,
                 )
-                available_labels = {
-                    f"S{position}" for position in range(1, len(evidence.results) + 1)
+                supporting_positions = set(grade.supporting_positions)
+                invalid_positions = {
+                    position
+                    for position in supporting_positions
+                    if position > len(evidence.results)
                 }
-                supporting_labels = {_normalize_label(label) for label in grade.supporting_labels}
-                invalid_labels = supporting_labels - available_labels
-                sufficient = grade.sufficient and bool(supporting_labels) and not invalid_labels
+                sufficient = (
+                    grade.sufficient and bool(supporting_positions) and not invalid_positions
+                )
                 reason = grade.reason.strip()
-                if grade.sufficient and not supporting_labels:
-                    reason = "Semantic grader claimed sufficiency without supporting labels"
-                elif invalid_labels:
-                    reason = "Semantic grader returned unknown supporting labels: " + ", ".join(
-                        sorted(invalid_labels)
+                if grade.sufficient and not supporting_positions:
+                    reason = "Semantic grader claimed sufficiency without supporting positions"
+                elif invalid_positions:
+                    reason = "Semantic grader returned unknown supporting positions: " + ", ".join(
+                        str(position) for position in sorted(invalid_positions)
                     )
                 elif not grade.sufficient and grade.missing_information:
                     reason = f"{reason} Missing: {grade.missing_information.strip()}"

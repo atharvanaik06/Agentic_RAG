@@ -7,6 +7,7 @@ import streamlit as st
 
 from advanced_rag.config import Settings
 from advanced_rag.evaluation.models import AgentEvaluationReport, RetrievalEvaluationReport
+from advanced_rag.evaluation.reporting import answerable_refusal_diagnostics
 from advanced_rag.graph import AgenticRAG, bounded_retrieval_attempts
 from advanced_rag.interfaces.evaluation_dashboard import (
     SavedEvaluationReports,
@@ -121,6 +122,9 @@ def _render_quality_gates(settings: Settings, reports: SavedEvaluationReports) -
     labels = {
         "hybrid_recall_at_k": f"Hybrid Recall@k ≥ {thresholds.hybrid_recall_at_k:.2f}",
         "citation_validity_rate": (f"Citation validity ≥ {thresholds.citation_validity_rate:.2f}"),
+        "answerable_success_rate": (
+            f"Answerable success ≥ {thresholds.answerable_success_rate:.2f}"
+        ),
         "refusal_accuracy": f"Refusal accuracy ≥ {thresholds.refusal_accuracy:.2f}",
         "maximum_average_retrieval_attempts": (
             f"Average retrieval attempts ≤ {thresholds.maximum_average_retrieval_attempts:.2f}"
@@ -128,6 +132,22 @@ def _render_quality_gates(settings: Settings, reports: SavedEvaluationReports) -
     }
     for name, passed in regression.checks.items():
         st.markdown(f"- {'✅' if passed else '❌'} {labels.get(name, name)}")
+    if (
+        reports.retrieval is not None
+        and reports.agent is not None
+        and reports.retrieval.benchmark == reports.agent.benchmark
+    ):
+        diagnostics = answerable_refusal_diagnostics(
+            retrieval=reports.retrieval,
+            agent=reports.agent,
+        )
+        if diagnostics.incorrect_refusal_ids:
+            st.warning(
+                f"{len(diagnostics.incorrect_refusal_ids)} answerable case(s) were refused. "
+                f"The expected source was retrieved for "
+                f"{len(diagnostics.expected_source_retrieved_ids)} and missing for "
+                f"{len(diagnostics.expected_source_missing_ids)}."
+            )
 
 
 def _render_retrieval_report(report: RetrievalEvaluationReport | None) -> None:
@@ -191,16 +211,18 @@ def _render_agent_report(report: AgentEvaluationReport | None) -> None:
         f"Benchmark: `{report.benchmark}` · {report.cases} cases · "
         f"entailment judge: {'enabled' if report.judged_entailment else 'disabled'}"
     )
-    first = st.columns(4)
-    first[0].metric("Citation validity", _percent(summary.citation_validity_rate))
-    first[1].metric("Source hit", _percent(summary.expected_source_hit_rate))
-    first[2].metric("Concept coverage", _percent(summary.concept_coverage))
-    first[3].metric("Refusal accuracy", _optional_percent(summary.refusal_accuracy))
-    second = st.columns(4)
-    second[0].metric("Rewrite rate", _percent(summary.rewrite_rate))
-    second[1].metric("Avg attempts", f"{summary.average_retrieval_attempts:.2f}")
-    second[2].metric("Avg chat calls", f"{summary.average_chat_api_calls:.2f}")
-    second[3].metric("Avg tokens", f"{summary.average_total_tokens:,.0f}")
+    first = st.columns(5)
+    first[0].metric("Answerable success", _optional_percent(summary.answerable_success_rate))
+    first[1].metric("Incorrect refusal", _optional_percent(summary.answerable_refusal_rate))
+    first[2].metric("Citation validity", _percent(summary.citation_validity_rate))
+    first[3].metric("Source hit", _percent(summary.expected_source_hit_rate))
+    first[4].metric("Refusal accuracy", _optional_percent(summary.refusal_accuracy))
+    second = st.columns(5)
+    second[0].metric("Concept coverage", _percent(summary.concept_coverage))
+    second[1].metric("Rewrite rate", _percent(summary.rewrite_rate))
+    second[2].metric("Avg attempts", f"{summary.average_retrieval_attempts:.2f}")
+    second[3].metric("Avg chat calls", f"{summary.average_chat_api_calls:.2f}")
+    second[4].metric("Avg tokens", f"{summary.average_total_tokens:,.0f}")
     if st.checkbox("Show per-case agent results", key="show_agent_cases"):
         st.dataframe(
             [

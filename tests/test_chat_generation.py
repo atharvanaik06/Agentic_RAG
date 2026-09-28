@@ -86,7 +86,7 @@ def test_openai_chat_grades_direct_evidence_with_structured_output() -> None:
     responses = FakeResponses(
         EvidenceGrade(
             sufficient=True,
-            supporting_labels=["S1"],
+            supporting_positions=[1],
             reason="S1 directly answers the question.",
         )
     )
@@ -95,10 +95,32 @@ def test_openai_chat_grades_direct_evidence_with_structured_output() -> None:
     grade, usage = model.grade_evidence(question="Question", evidence=[_result()])
 
     assert grade.sufficient is True
-    assert grade.supporting_labels == ["S1"]
+    assert grade.supporting_positions == [1]
     assert usage.api_calls == 1
     assert responses.arguments["text_format"] is EvidenceGrade
     assert "directly contains enough information" in responses.arguments["instructions"]
+    assert "Never return keywords" in responses.arguments["instructions"]
+
+
+def test_evidence_grade_schema_requires_positive_integer_positions() -> None:
+    schema = EvidenceGrade.model_json_schema()
+    position_schema = schema["properties"]["supporting_positions"]["items"]
+
+    assert position_schema == {"minimum": 1, "type": "integer"}
+    with pytest.raises(ValueError):
+        EvidenceGrade(
+            sufficient=True,
+            supporting_positions=[0],
+            reason="Invalid zero position.",
+        )
+    with pytest.raises(ValueError):
+        EvidenceGrade.model_validate(
+            {
+                "sufficient": True,
+                "supporting_positions": ["INFLATION"],
+                "reason": "Invalid topical label.",
+            }
+        )
 
 
 def test_chat_model_requires_user_api_key() -> None:

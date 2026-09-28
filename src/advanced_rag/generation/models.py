@@ -1,6 +1,6 @@
 """Typed inputs and outputs for grounded answer generation."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,11 +23,17 @@ class QueryRewrite(BaseModel):
     query: str = Field(min_length=1, max_length=500)
 
 
+EvidencePosition = Annotated[int, Field(ge=1)]
+
+
 class EvidenceGrade(BaseModel):
     """Structured judgment of whether retrieved passages can answer the question."""
 
     sufficient: bool
-    supporting_labels: list[str] = Field(default_factory=list)
+    supporting_positions: list[EvidencePosition] = Field(
+        default_factory=list,
+        description="One-based positions from evidence identifiers such as 1 for S1",
+    )
     reason: str = Field(min_length=1, max_length=800)
     missing_information: str | None = Field(default=None, max_length=800)
 

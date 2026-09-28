@@ -369,9 +369,10 @@ uv run rag evaluate-agent evaluations/monetary_policy.jsonl --limit 3
 uv run rag evaluate-agent evaluations/monetary_policy.jsonl
 ```
 
-Agent evaluation checks expected concepts and sources, refusal behavior,
-citation validity against stored chunk IDs, rewrites, retrieval attempts, chat
-calls, tokens, and latency. These deterministic checks are the default. An
+Agent evaluation checks expected concepts and sources, answerable-case success,
+incorrect refusals, unanswerable-case refusal accuracy, citation validity against
+stored chunk IDs, rewrites, retrieval attempts, chat calls, tokens, and latency.
+These deterministic checks are the default. An
 optional model-based entailment check can inspect whether each claim is
 supported by its cited evidence, but adds one API call per evaluated claim:
 
@@ -388,9 +389,11 @@ uv run rag evaluate-report
 Reports are written under `reports/` and ignored by Git because generated
 answers may reflect private corpora. Add `--enforce` to any evaluation command
 to return a failing exit code when its configured regression gate fails. The
-default gates cover hybrid recall, citation validity, refusal accuracy, and
-average retrieval attempts and can be adjusted with the `RAG_EVALUATION_*`
-settings in `.env`.
+default gates cover hybrid recall, citation validity, answerable-case success,
+refusal accuracy, and average retrieval attempts and can be adjusted with the
+`RAG_EVALUATION_*` settings in `.env`. When matching retrieval and agent reports
+are available, the summary also separates incorrect refusals where the expected
+source was retrieved from those where it was missing.
 
 The same deterministic retrieval and agent evaluations can be launched from the
 Streamlit **Evaluation dashboard**. Saved reports survive application restarts,
@@ -493,6 +496,7 @@ Evaluation configuration uses `RAG_EVALUATION_BENCHMARK_DIR`,
 `RAG_EVALUATION_ENTAILMENT_MODEL`,
 `RAG_EVALUATION_HYBRID_RECALL_THRESHOLD`,
 `RAG_EVALUATION_CITATION_VALIDITY_THRESHOLD`,
+`RAG_EVALUATION_ANSWERABLE_SUCCESS_THRESHOLD`,
 `RAG_EVALUATION_REFUSAL_ACCURACY_THRESHOLD`, and
 `RAG_EVALUATION_MAX_AVERAGE_ATTEMPTS`.
 

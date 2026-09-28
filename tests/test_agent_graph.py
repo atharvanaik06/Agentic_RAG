@@ -203,7 +203,7 @@ def test_semantic_grader_rewrites_related_evidence_then_allows_direct_evidence()
             ),
             EvidenceGrade(
                 sufficient=True,
-                supporting_labels=["S1"],
+                supporting_positions=[1],
                 reason="S1 directly states the requested decision.",
             ),
         ]
@@ -260,7 +260,7 @@ def test_semantic_grader_refuses_after_retry_without_generating() -> None:
     assert chat.generate_calls == 0
 
 
-def test_semantic_grader_fails_closed_on_unknown_supporting_label() -> None:
+def test_semantic_grader_fails_closed_on_unknown_supporting_position() -> None:
     chat = FakeChatModel(
         GroundedDraft(claims=[AnswerClaim(text="Must not run.", citations=["S1"])])
     )
@@ -268,8 +268,8 @@ def test_semantic_grader_fails_closed_on_unknown_supporting_label() -> None:
         [
             EvidenceGrade(
                 sufficient=True,
-                supporting_labels=["S99"],
-                reason="Incorrect label.",
+                supporting_positions=[99],
+                reason="Incorrect position.",
             )
         ]
     )
@@ -284,7 +284,7 @@ def test_semantic_grader_fails_closed_on_unknown_supporting_label() -> None:
     answer = agent.ask("What policy decision was made?")
 
     assert answer.insufficient_evidence is True
-    assert "unknown supporting labels" in answer.answer
+    assert "unknown supporting positions" in answer.answer
     assert chat.generate_calls == 0
 
 

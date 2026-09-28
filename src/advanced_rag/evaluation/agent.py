@@ -56,6 +56,9 @@ class AgentEvaluator:
         results = [self._evaluate_case(case, top_k) for case in cases]
         answerable = [item for item in results if item.answerable]
         refusal_cases = [item for item in results if not item.answerable]
+        answerable_success_rate = (
+            mean([float(not item.refused) for item in answerable]) if answerable else None
+        )
         entailment = [verdict for item in results for verdict in item.entailment]
         supported = sum(verdict.label == "supported" for verdict in entailment)
         summary = AgentSummary(
@@ -63,6 +66,10 @@ class AgentEvaluator:
             citation_validity_rate=mean([float(item.citation_valid) for item in results]),
             expected_source_hit_rate=mean([float(item.expected_source_hit) for item in answerable]),
             concept_coverage=mean([item.concept_coverage for item in answerable]),
+            answerable_success_rate=answerable_success_rate,
+            answerable_refusal_rate=(
+                1.0 - answerable_success_rate if answerable_success_rate is not None else None
+            ),
             refusal_accuracy=(
                 mean([float(item.refusal_correct) for item in refusal_cases])
                 if refusal_cases
