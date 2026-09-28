@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     evaluation_entailment_model: str = "gpt-4o-mini"
     evaluation_hybrid_recall_threshold: float = Field(default=0.75, ge=0, le=1)
     evaluation_citation_validity_threshold: float = Field(default=1.0, ge=0, le=1)
+    evaluation_answerable_success_threshold: float = Field(default=0.8, ge=0, le=1)
     evaluation_refusal_accuracy_threshold: float = Field(default=0.8, ge=0, le=1)
     evaluation_max_average_attempts: float = Field(default=1.5, ge=1, le=5)
 

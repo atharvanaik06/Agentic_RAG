@@ -71,6 +71,7 @@ def thresholds_from_settings(settings: Settings) -> RegressionThresholds:
     return RegressionThresholds(
         hybrid_recall_at_k=settings.evaluation_hybrid_recall_threshold,
         citation_validity_rate=settings.evaluation_citation_validity_threshold,
+        answerable_success_rate=settings.evaluation_answerable_success_threshold,
         refusal_accuracy=settings.evaluation_refusal_accuracy_threshold,
         maximum_average_retrieval_attempts=settings.evaluation_max_average_attempts,
     )

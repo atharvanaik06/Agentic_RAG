@@ -118,6 +118,8 @@ def test_agent_report_usage_sums_actual_case_usage() -> None:
         citation_validity_rate=1,
         expected_source_hit_rate=1,
         concept_coverage=1,
+        answerable_success_rate=1,
+        answerable_refusal_rate=0,
         refusal_accuracy=None,
         rewrite_rate=0,
         average_retrieval_attempts=1,
